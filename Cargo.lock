@@ -117,7 +117,7 @@ dependencies = [
 
 [[package]]
 name = "fdisk"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "error-chain 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "fdisk-sys 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",

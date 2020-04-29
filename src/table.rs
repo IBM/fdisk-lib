@@ -20,14 +20,14 @@ impl Table {
     }
 
     /// Increments reference counter.
-    pub fn ref_table(&mut self) {
+    pub fn ref_table(&self) {
         unsafe { fdisk_sys::fdisk_ref_table(self.ptr) }
     }
 
     /// Removes all entries (partitions) from the table. The parititons
     /// with zero reference count will be deallocated.
     /// This function does not modify partition table.
-    pub fn reset_table(&mut self) -> Result<()> {
+    pub fn reset_table(&self) -> Result<()> {
         match unsafe { fdisk_sys::fdisk_reset_table(self.ptr) } {
             0 => Ok(()),
             v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
@@ -39,7 +39,7 @@ impl Table {
     /// if you want to keep the pa referenced by the table only.
     /// # Arguments
     /// * `pa` - partition
-    pub fn add_partition(&mut self, pa: &mut Partition) -> Result<()> {
+    pub fn add_partition(&self, pa: &mut Partition) -> Result<()> {
         match unsafe { fdisk_sys::fdisk_table_add_partition(self.ptr, pa.ptr) } {
             0 => Ok(()),
             v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
@@ -47,12 +47,12 @@ impl Table {
     }
 
     /// Return number of entries in table
-    pub fn nents(&mut self) -> usize {
+    pub fn nents(&self) -> usize {
         unsafe { fdisk_sys::fdisk_table_get_nents(self.ptr) }
     }
 
     /// Return n-th entry from table
-    pub fn partition(&mut self, n: usize) -> Option<Partition> {
+    pub fn partition(&self, n: usize) -> Option<Partition> {
         let ptr = unsafe { fdisk_sys::fdisk_table_get_partition(self.ptr, n) };
         if ptr.is_null() {
             return None;
@@ -61,7 +61,7 @@ impl Table {
     }
 
     /// Return partition with partno.
-    pub fn partition_by_partno(&mut self, partno: usize) -> Option<Partition> {
+    pub fn partition_by_partno(&self, partno: usize) -> Option<Partition> {
         let ptr = unsafe { fdisk_sys::fdisk_table_get_partition_by_partno(self.ptr, partno) };
         if ptr.is_null() {
             return None;
@@ -70,7 +70,7 @@ impl Table {
     }
 
     /// Return true if the table is without filesystems
-    pub fn is_empty(&mut self) -> bool {
+    pub fn is_empty(&self) -> bool {
         match unsafe { fdisk_sys::fdisk_table_is_empty(self.ptr) } {
             1 => true,
             _ => false,
@@ -83,7 +83,7 @@ impl Table {
     ///
     /// # Arguments
     /// * `pa` - partition
-    pub fn remove_partition(&mut self, pa: &mut Partition) -> Result<()> {
+    pub fn remove_partition(&self, pa: &mut Partition) -> Result<()> {
         match unsafe { fdisk_sys::fdisk_table_remove_partition(self.ptr, pa.ptr) } {
             0 => Ok(()),
             v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
@@ -91,7 +91,7 @@ impl Table {
     }
 
     /// Return true if the table is not in disk order
-    pub fn is_wrong_order(&mut self) -> bool {
+    pub fn is_wrong_order(&self) -> bool {
         match unsafe { fdisk_sys::fdisk_table_wrong_order(self.ptr) } {
             1 => true,
             _ => false,
