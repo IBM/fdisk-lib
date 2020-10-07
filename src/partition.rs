@@ -4,6 +4,7 @@
 //! or on-disk label data. The fdisk_partition is possible to use as a
 //! template for fdisk_add_partition() or fdisk_set_partition() operations.
 
+use crate::context::Context;
 use crate::errors::*;
 use fdisk_sys;
 use std::ffi::{CStr, CString};
@@ -267,5 +268,26 @@ impl Drop for Partition {
 impl Default for Partition {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Context {
+    /// Modifies disklabel according to setting with in pa .
+    /// # Arguments
+    /// * `partno` - partition number (0 is the first partition)
+    /// * `pt` - new partition setting
+    pub fn set_partition(&self, no: usize, pt: &Partition) -> Result<()> {
+        match unsafe { fdisk_sys::fdisk_set_partition(self.ptr, no, pt.ptr) } {
+            0 => Ok(()),
+            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
+        }
+    }
+
+    /// Delete all used partitions from disklabel
+    pub fn delete_all_partitions(&self) -> Result<()> {
+        match unsafe { fdisk_sys::fdisk_delete_all_partitions(self.ptr) } {
+            0 => Ok(()),
+            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
+        }
     }
 }

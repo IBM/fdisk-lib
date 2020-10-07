@@ -83,6 +83,16 @@ impl Context {
         }
     }
 
+    /// The library removes all PT/filesystem/RAID signatures before it writes partition table.
+    /// The probing area where it looks for signatures is from the begin of the disk.
+    /// The device is wiped by libblkid.
+    pub fn enable_wipe(&self, enable: bool) -> Result<()> {
+        match unsafe { fdisk_sys::fdisk_enable_wipe(self.ptr, enable as i32) } {
+            0 => Ok(()),
+            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
+        }
+    }
+
     /// The library zeroizes all the first sector when create a new disk label by default.
     /// This function allows to control this behavior. For now it's supported for MBR and GPT.
     /// # Arguments

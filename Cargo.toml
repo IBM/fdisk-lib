@@ -9,6 +9,6 @@ description = "Rust wrappers for libfdisk"
 
 [dependencies]
 libc="^0.2.65"
-error-chain = { version = "0.12", default-features = false }
+error-chain = { version = "^0.12", default-features = false }
 fdisk-sys = "^0.1.0"
 nix = "0.16.1"
