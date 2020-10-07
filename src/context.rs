@@ -8,15 +8,6 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 
 #[repr(u32)]
-pub enum DiskLabel {
-    Dos = fdisk_sys::fdisk_labeltype_FDISK_DISKLABEL_DOS,
-    Sun = fdisk_sys::fdisk_labeltype_FDISK_DISKLABEL_SUN,
-    Sgi = fdisk_sys::fdisk_labeltype_FDISK_DISKLABEL_SGI,
-    Bsd = fdisk_sys::fdisk_labeltype_FDISK_DISKLABEL_BSD,
-    Gpt = fdisk_sys::fdisk_labeltype_FDISK_DISKLABEL_GPT,
-}
-
-#[repr(u32)]
 pub enum DiskUnit {
     Human = fdisk_sys::FDISK_SIZEUNIT_HUMAN,
     Bytes = fdisk_sys::FDISK_SIZEUNIT_BYTES,
@@ -260,14 +251,6 @@ impl Context {
         unsafe { fdisk_sys::fdisk_get_units_per_sector(self.ptr) }
     }
 
-    /// Return 'true' if there is label on the device.
-    pub fn has_label(&self) -> bool {
-        match unsafe { fdisk_sys::fdisk_has_label(self.ptr) } {
-            1 => true,
-            _ => false,
-        }
-    }
-
     /// Return 'true' if boot bits protection enabled.
     pub fn has_protected_bootbits(&self) -> bool {
         match unsafe { fdisk_sys::fdisk_has_protected_bootbits(self.ptr) } {
@@ -279,16 +262,6 @@ impl Context {
     /// Return 'true' if details are enabled
     pub fn is_details(&self) -> bool {
         match unsafe { fdisk_sys::fdisk_is_details(self.ptr) } {
-            1 => true,
-            _ => false,
-        }
-    }
-
-    /// Return 'true' if list-only mode enabled
-    /// # Arguments
-    /// * `id`- FDISK_DISKLABEL_*
-    pub fn is_labeltype(&self, id: DiskLabel) -> bool {
-        match unsafe { fdisk_sys::fdisk_is_labeltype(self.ptr, id as u32) } {
             1 => true,
             _ => false,
         }
