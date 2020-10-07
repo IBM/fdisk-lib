@@ -1,6 +1,6 @@
 [package]
 name = "fdisk"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Nikita Dubrovskii <nikita@linux.ibm.com>"]
 edition = "2018"
 license = "MIT"
@@ -9,6 +9,6 @@ description = "Rust wrappers for libfdisk"
 
 [dependencies]
 libc="^0.2.65"
-error-chain = { version = "0.12", default-features = false }
+error-chain = { version = "^0.12", default-features = false }
 fdisk-sys = "^0.1.0"
 nix = "0.16.1"

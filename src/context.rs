@@ -8,15 +8,6 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 
 #[repr(u32)]
-pub enum DiskLabel {
-    Dos = fdisk_sys::fdisk_labeltype_FDISK_DISKLABEL_DOS,
-    Sun = fdisk_sys::fdisk_labeltype_FDISK_DISKLABEL_SUN,
-    Sgi = fdisk_sys::fdisk_labeltype_FDISK_DISKLABEL_SGI,
-    Bsd = fdisk_sys::fdisk_labeltype_FDISK_DISKLABEL_BSD,
-    Gpt = fdisk_sys::fdisk_labeltype_FDISK_DISKLABEL_GPT,
-}
-
-#[repr(u32)]
 pub enum DiskUnit {
     Human = fdisk_sys::FDISK_SIZEUNIT_HUMAN,
     Bytes = fdisk_sys::FDISK_SIZEUNIT_BYTES,
@@ -78,6 +69,16 @@ impl Context {
     /// * `nosync` - disable fsync()
     pub fn deassign_device(&self, nosync: bool) -> Result<()> {
         match unsafe { fdisk_sys::fdisk_deassign_device(self.ptr, nosync as i32) } {
+            0 => Ok(()),
+            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
+        }
+    }
+
+    /// The library removes all PT/filesystem/RAID signatures before it writes partition table.
+    /// The probing area where it looks for signatures is from the begin of the disk.
+    /// The device is wiped by libblkid.
+    pub fn enable_wipe(&self, enable: bool) -> Result<()> {
+        match unsafe { fdisk_sys::fdisk_enable_wipe(self.ptr, enable as i32) } {
             0 => Ok(()),
             v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
         }
@@ -250,14 +251,6 @@ impl Context {
         unsafe { fdisk_sys::fdisk_get_units_per_sector(self.ptr) }
     }
 
-    /// Return 'true' if there is label on the device.
-    pub fn has_label(&self) -> bool {
-        match unsafe { fdisk_sys::fdisk_has_label(self.ptr) } {
-            1 => true,
-            _ => false,
-        }
-    }
-
     /// Return 'true' if boot bits protection enabled.
     pub fn has_protected_bootbits(&self) -> bool {
         match unsafe { fdisk_sys::fdisk_has_protected_bootbits(self.ptr) } {
@@ -269,16 +262,6 @@ impl Context {
     /// Return 'true' if details are enabled
     pub fn is_details(&self) -> bool {
         match unsafe { fdisk_sys::fdisk_is_details(self.ptr) } {
-            1 => true,
-            _ => false,
-        }
-    }
-
-    /// Return 'true' if list-only mode enabled
-    /// # Arguments
-    /// * `id`- FDISK_DISKLABEL_*
-    pub fn is_labeltype(&self, id: DiskLabel) -> bool {
-        match unsafe { fdisk_sys::fdisk_is_labeltype(self.ptr, id as u32) } {
             1 => true,
             _ => false,
         }
