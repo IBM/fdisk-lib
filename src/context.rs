@@ -356,13 +356,6 @@ impl Context {
             v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
         }
     }
-
-    pub fn apply_table(&self, table: &Table) -> Result<()> {
-        match unsafe { fdisk_sys::fdisk_apply_table(self.ptr, table.ptr) } {
-            0 => Ok(()),
-            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
-        }
-    }
 }
 
 impl Drop for Context {
