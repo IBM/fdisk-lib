@@ -1,7 +1,7 @@
 //! Label — disk label (PT) specific data and functions
 
 use crate::context::Context;
-use crate::errors::*;
+use anyhow::{anyhow, Result};
 use fdisk_sys;
 use std::ffi::{CStr, CString};
 
@@ -41,7 +41,7 @@ impl Label {
         unsafe {
             let src = fdisk_sys::fdisk_label_get_name(self.ptr);
             if src.is_null() {
-                return Err("no valid name".into());
+                return Err(anyhow!("no valid name"));
             }
             match CStr::from_ptr(src).to_str() {
                 Ok(v) => Ok(v.to_string()),
@@ -66,19 +66,24 @@ impl Context {
     /// # Arguments
     /// * `id`- FDISK_DISKLABEL_*
     pub fn is_labeltype(&self, id: DiskLabel) -> bool {
-        match unsafe { fdisk_sys::fdisk_is_labeltype(self.ptr, id as u32) } {
-            1 => true,
-            _ => false,
-        }
+        matches!(
+            unsafe { fdisk_sys::fdisk_is_labeltype(self.ptr, id as u32) },
+            1
+        )
     }
 
     /// Creates a new disk label of type name .
     /// If name is NULL, then it will create a default system label type, either SUN or DOS.
     pub fn create_disklabel<L: AsRef<str>>(&self, name: L) -> Result<()> {
-        let name = CString::new(name.as_ref().as_bytes())?;
-        match unsafe { fdisk_sys::fdisk_create_disklabel(self.ptr, name.as_ptr()) } {
+        let name = name.as_ref();
+        let label = CString::new(name.as_bytes())?;
+        match unsafe { fdisk_sys::fdisk_create_disklabel(self.ptr, label.as_ptr()) } {
             0 => Ok(()),
-            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
+            v => Err(anyhow!(
+                "creating disk label '{}', errno: {}",
+                name,
+                nix::errno::from_i32(-v)
+            )),
         }
     }
 
@@ -86,7 +91,10 @@ impl Context {
     pub fn write_disklabel(&self) -> Result<()> {
         match unsafe { fdisk_sys::fdisk_write_disklabel(self.ptr) } {
             0 => Ok(()),
-            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
+            v => Err(anyhow!(
+                "writting disk label, errno: {}",
+                nix::errno::from_i32(-v)
+            )),
         }
     }
 
@@ -94,7 +102,10 @@ impl Context {
     pub fn verify_disklabel(&self) -> Result<()> {
         match unsafe { fdisk_sys::fdisk_verify_disklabel(self.ptr) } {
             0 => Ok(()),
-            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
+            v => Err(anyhow!(
+                "verifying disk label, errno: {}",
+                nix::errno::from_i32(-v)
+            )),
         }
     }
 
@@ -107,7 +118,7 @@ impl Context {
         unsafe {
             let ptr = fdisk_sys::fdisk_get_label(self.ptr, name);
             if ptr.is_null() {
-                return Err("no valid label".into());
+                return Err(anyhow!("{}", "no valid label"));
             }
             Ok(Label { ptr })
         }
@@ -115,9 +126,6 @@ impl Context {
 
     /// Return 'true' if there is label on the device.
     pub fn has_label(&self) -> bool {
-        match unsafe { fdisk_sys::fdisk_has_label(self.ptr) } {
-            1 => true,
-            _ => false,
-        }
+        matches!(unsafe { fdisk_sys::fdisk_has_label(self.ptr) }, 1)
     }
 }

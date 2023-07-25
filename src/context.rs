@@ -1,7 +1,7 @@
 //! Stores info about device, labels etc.
 
-use crate::errors::*;
 use crate::table::Table;
+use anyhow::{anyhow, Result};
 use fdisk_sys;
 use std::ffi::{CStr, CString};
 use std::os::unix::ffi::OsStrExt;
@@ -38,7 +38,10 @@ impl Context {
         let name = CString::new(name.as_bytes())?;
         let ptr = unsafe { fdisk_sys::fdisk_new_nested_context(self.ptr, name.as_ptr()) };
         if ptr.is_null() {
-            return Err(nix::Error::last().into());
+            return Err(anyhow!(
+                "nested context is null, errno: {}",
+                nix::Error::last()
+            ));
         }
         Ok(Context { ptr })
     }
@@ -54,23 +57,33 @@ impl Context {
     /// * `name` - path to the device to be handled
     /// * `readonly` - how to open the device
     pub fn assign_device<P: AsRef<Path>>(&self, name: P, readonly: bool) -> Result<()> {
-        let device = CString::new(name.as_ref().as_os_str().as_bytes())
-            .chain_err(|| format!("converting to CString {}", name.as_ref().display()))?;
+        let name = name.as_ref();
+        let device = match CString::new(name.as_os_str().as_bytes()) {
+            Ok(s) => s,
+            _ => return Err(anyhow!("converting to CString {}", name.display())),
+        };
         match unsafe { fdisk_sys::fdisk_assign_device(self.ptr, device.as_ptr(), readonly as i32) }
         {
             0 => Ok(()),
-            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
+            v => Err(anyhow!(
+                "assigning device {}, errno: {}",
+                name.display(),
+                nix::errno::from_i32(-v)
+            )),
         }
     }
 
-    /// Close device  and call fsync(). If the cxt is nested context
+    /// Close device and call fsync(). If the cxt is nested context
     /// than the request is redirected to the parent.
     /// # Arguments
     /// * `nosync` - disable fsync()
     pub fn deassign_device(&self, nosync: bool) -> Result<()> {
         match unsafe { fdisk_sys::fdisk_deassign_device(self.ptr, nosync as i32) } {
             0 => Ok(()),
-            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
+            v => Err(anyhow!(
+                "closing device, errno: {}",
+                nix::errno::from_i32(-v)
+            )),
         }
     }
 
@@ -80,7 +93,10 @@ impl Context {
     pub fn enable_wipe(&self, enable: bool) -> Result<()> {
         match unsafe { fdisk_sys::fdisk_enable_wipe(self.ptr, enable as i32) } {
             0 => Ok(()),
-            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
+            v => Err(anyhow!(
+                "changing wipe, errno: {}",
+                nix::errno::from_i32(-v)
+            )),
         }
     }
 
@@ -91,7 +107,10 @@ impl Context {
     pub fn enable_bootbits_protection(&self, enable: bool) -> Result<()> {
         match unsafe { fdisk_sys::fdisk_enable_bootbits_protection(self.ptr, enable as i32) } {
             0 => Ok(()),
-            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
+            v => Err(anyhow!(
+                "changing bootbits protection, errno: {}",
+                nix::errno::from_i32(-v)
+            )),
         }
     }
 
@@ -102,7 +121,10 @@ impl Context {
     pub fn enable_details(&self, enable: bool) -> Result<()> {
         match unsafe { fdisk_sys::fdisk_enable_details(self.ptr, enable as i32) } {
             0 => Ok(()),
-            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
+            v => Err(anyhow!(
+                "changing details, errno: {}",
+                nix::errno::from_i32(-v)
+            )),
         }
     }
 
@@ -112,7 +134,10 @@ impl Context {
     pub fn enable_listonly(&self, enable: bool) -> Result<()> {
         match unsafe { fdisk_sys::fdisk_enable_listonly(self.ptr, enable as i32) } {
             0 => Ok(()),
-            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
+            v => Err(anyhow!(
+                "changing listonly, errno: {}",
+                nix::errno::from_i32(-v)
+            )),
         }
     }
 
@@ -133,7 +158,7 @@ impl Context {
         unsafe {
             let src = fdisk_sys::fdisk_get_devname(self.ptr);
             if src.is_null() {
-                return Err("no valid name".into());
+                return Err(anyhow!("no valid name"));
             }
             match CStr::from_ptr(src).to_str() {
                 Ok(v) => Ok(v.to_string()),
@@ -215,7 +240,7 @@ impl Context {
         let mut table = Table::new();
         match unsafe { fdisk_sys::fdisk_get_partitions(self.ptr, &mut table.ptr) } {
             0 => Ok(table),
-            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
+            v => Err(anyhow!("{}", nix::errno::from_i32(-v))),
         }
     }
 
@@ -236,7 +261,7 @@ impl Context {
         unsafe {
             let src = fdisk_sys::fdisk_get_unit(self.ptr, n as i32);
             if src.is_null() {
-                return Err("no valid name".into());
+                return Err(anyhow!("no valid name"));
             }
             match CStr::from_ptr(src).to_str() {
                 Ok(v) => Ok(v.to_string()),
@@ -253,34 +278,25 @@ impl Context {
 
     /// Return 'true' if boot bits protection enabled.
     pub fn has_protected_bootbits(&self) -> bool {
-        match unsafe { fdisk_sys::fdisk_has_protected_bootbits(self.ptr) } {
-            1 => true,
-            _ => false,
-        }
+        matches!(
+            unsafe { fdisk_sys::fdisk_has_protected_bootbits(self.ptr) },
+            1
+        )
     }
 
     /// Return 'true' if details are enabled
     pub fn is_details(&self) -> bool {
-        match unsafe { fdisk_sys::fdisk_is_details(self.ptr) } {
-            1 => true,
-            _ => false,
-        }
+        matches!(unsafe { fdisk_sys::fdisk_is_details(self.ptr) }, 1)
     }
 
     /// Return 'true' if list-only mode enabled
     pub fn is_listonly(&self) -> bool {
-        match unsafe { fdisk_sys::fdisk_is_listonly(self.ptr) } {
-            1 => true,
-            _ => false,
-        }
+        matches!(unsafe { fdisk_sys::fdisk_is_listonly(self.ptr) }, 1)
     }
 
     /// Return 'true' if device open readonly
     pub fn is_readonly(&self) -> bool {
-        match unsafe { fdisk_sys::fdisk_is_readonly(self.ptr) } {
-            1 => true,
-            _ => false,
-        }
+        matches!(unsafe { fdisk_sys::fdisk_is_readonly(self.ptr) }, 1)
     }
 
     /// It's strongly recommended to use the default library setting.
@@ -296,7 +312,7 @@ impl Context {
     pub fn set_first_lba(&self, lba: u64) -> Result<()> {
         match unsafe { fdisk_sys::fdisk_set_first_lba(self.ptr, lba) } {
             0 => Ok(()),
-            v => Err(format!("fdisk_set_first_lba failed with code {}", v).into()),
+            v => Err(anyhow!("fdisk_set_first_lba failed with code {}", v)),
         }
     }
 
@@ -311,7 +327,7 @@ impl Context {
     pub fn set_last_lba(&self, lba: u64) -> Result<()> {
         match unsafe { fdisk_sys::fdisk_set_last_lba(self.ptr, lba) } {
             0 => Ok(()),
-            v => Err(format!("fdisk_set_last_lba failed with code {}", v).into()),
+            v => Err(anyhow!("fdisk_set_last_lba failed with code {}", v)),
         }
     }
 
@@ -321,7 +337,7 @@ impl Context {
     pub fn set_size_unit(&self, unit: DiskUnit) -> Result<()> {
         match unsafe { fdisk_sys::fdisk_set_size_unit(self.ptr, unit as i32) } {
             0 => Ok(()),
-            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
+            v => Err(anyhow!("{}", nix::errno::from_i32(-v))),
         }
     }
 
@@ -336,7 +352,7 @@ impl Context {
         };
         match unsafe { fdisk_sys::fdisk_set_unit(self.ptr, s.as_ptr()) } {
             0 => Ok(()),
-            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
+            v => Err(anyhow!("{}", nix::errno::from_i32(-v))),
         }
     }
 
@@ -353,7 +369,10 @@ impl Context {
     pub fn save_user_sector_size(&self, phy: u32, log: u32) -> Result<()> {
         match unsafe { fdisk_sys::fdisk_save_user_sector_size(self.ptr, phy, log) } {
             0 => Ok(()),
-            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
+            v => Err(anyhow!(
+                "saving sector size, errno: {}",
+                nix::errno::from_i32(-v)
+            )),
         }
     }
 }

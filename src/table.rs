@@ -1,9 +1,9 @@
 //! Container for fdisk partitions. The container does not have any
 //! real connection with label (partition table) and with real on-disk data.
 
-use crate::errors::*;
 use crate::iter::Iter;
 use crate::partition::Partition;
+use anyhow::{anyhow, Result};
 use fdisk_sys;
 
 /// Container for fdisk partitions
@@ -30,7 +30,10 @@ impl Table {
     pub fn reset_table(&self) -> Result<()> {
         match unsafe { fdisk_sys::fdisk_reset_table(self.ptr) } {
             0 => Ok(()),
-            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
+            v => Err(anyhow!(
+                "resetting table, errno: {}",
+                nix::errno::from_i32(v)
+            )),
         }
     }
 
@@ -42,7 +45,10 @@ impl Table {
     pub fn add_partition(&self, pa: &mut Partition) -> Result<()> {
         match unsafe { fdisk_sys::fdisk_table_add_partition(self.ptr, pa.ptr) } {
             0 => Ok(()),
-            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
+            v => Err(anyhow!(
+                "adding partition, errno: {}",
+                nix::errno::from_i32(v)
+            )),
         }
     }
 
@@ -71,10 +77,7 @@ impl Table {
 
     /// Return true if the table is without filesystems
     pub fn is_empty(&self) -> bool {
-        match unsafe { fdisk_sys::fdisk_table_is_empty(self.ptr) } {
-            1 => true,
-            _ => false,
-        }
+        matches!(unsafe { fdisk_sys::fdisk_table_is_empty(self.ptr) }, 1)
     }
 
     /// Removes the pa from the table and de-increment reference counter of the pa .
@@ -86,16 +89,16 @@ impl Table {
     pub fn remove_partition(&self, pa: &mut Partition) -> Result<()> {
         match unsafe { fdisk_sys::fdisk_table_remove_partition(self.ptr, pa.ptr) } {
             0 => Ok(()),
-            v => Err(nix::Error::from_errno(nix::errno::from_i32(-v)).into()),
+            v => Err(anyhow!(
+                "removing partition, errno: {}",
+                nix::errno::from_i32(v)
+            )),
         }
     }
 
     /// Return true if the table is not in disk order
     pub fn is_wrong_order(&self) -> bool {
-        match unsafe { fdisk_sys::fdisk_table_wrong_order(self.ptr) } {
-            1 => true,
-            _ => false,
-        }
+        matches!(unsafe { fdisk_sys::fdisk_table_wrong_order(self.ptr) }, 1)
     }
 
     pub fn iter(&mut self) -> Iter {
